@@ -1,0 +1,118 @@
+#!/bin/bash
+
+## variable definition
+source /etc/nginxtool/nginxtool.conf
+
+## check variable definition
+if [ -z "$clusterNode" ]; then
+  echo -e "\033[31mNot support empty variable \$clusterNode definition!\033[0m"
+  exit 1
+fi
+
+if [ -z "$synNode" ]; then
+  echo -e "\033[31mNot support empty variable \$synNode definition!\033[0m"
+  exit 1
+fi
+
+if [ -z "$synConf" ]; then
+  echo -e "\033[31mNot support empty variable \$synConf definition!\033[0m"
+  exit 1
+fi
+
+## fouction
+synconf() {
+  for i in $synNode; do
+    ping -c 1 $i &> /dev/null
+    if [ $? -ne "0" ]; then
+      echo -e "\033[31mSynchronized is not successfully of node $i, connection failure!\033[0m"
+      continue
+    fi
+    for j in $synConf; do
+      /usr/bin/rsync -avP --delete $j $i:$j &> /dev/null
+      if [ $? -ne "0" ]; then
+        echo -e "\033[31m$i: Synchronized is not successfully of $j\033[0m"
+      else
+        echo "$i: Synchronized is successfully of $j"
+      fi
+    done
+  done
+}
+
+chkconf() {
+  for i in $clusterNode; do
+    echo "Check config of "$i","
+    ping -c 1 $i &> /dev/null
+    if [ $? -ne "0" ]; then
+      echo -e "\033[31mCheck configure is not successfully of node $i, connection failure!\033[0m"
+      continue
+    fi
+    /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx configtest'
+  done
+}
+
+status() {
+  for i in $clusterNode; do
+    ping -c 1 $i &> /dev/null
+    if [ $? -ne "0" ]; then
+      echo -e "\033[31mCheck service status is not successfully of node $i, connection failure!\033[0m"
+      continue
+    fi
+    /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx status'
+  done
+}
+
+start() {
+  /usr/bin/docker stack deploy -c /data/docker/yml/nginx-stack.yml nginx
+}
+
+stop() {
+  /usr/bin/docker stack rm nginx
+}
+
+reload() {
+  for i in $clusterNode; do
+    ping -c 1 $i &> /dev/null
+    if [ $? -ne "0" ]; then
+      echo -e "\033[31mReload service is not successfully of node $i, connection failure!\033[0m"
+      continue
+    fi
+    stat=$(/usr/bin/docker stack ls | grep nginx | wc -l)
+    if [ $stat -ne "0" ]; then
+      echo "Reloading "$i"..."
+      /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx reload'
+    else
+      start
+    fi
+  done
+}
+
+case "$1" in
+  check)
+    chkconf
+    ;;
+  status)
+    status
+    ;;
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  reload)
+    reload
+    ;;
+  restart)
+    stop
+    start
+    ;;
+  sync)
+    synconf
+    ;;
+  *)
+    echo $"Usage: $0 {check|status|start|stop|reload|restart|sync}"
+    exit 1
+esac
+
+exit $?
+
