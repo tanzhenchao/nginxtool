@@ -1,5 +1,6 @@
 # 工具简介
 一款基于Nginx集群的管理工具，支持Nginx集群配置文件检查，服务状态查询、启动、停止、重载、重启、同步
+集群范例请参阅：https://www.cmdschool.org/archives/32385
 
 # 安装脚本工具
 <pre>
