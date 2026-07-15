@@ -2,6 +2,7 @@
 
 ## variable definition
 source /etc/nginxtool/nginxtool.conf
+containerName="mes-platform_nginx"
 
 ## check variable definition
 if [ -z "$clusterNode" ]; then
@@ -46,7 +47,9 @@ chkconf() {
       echo -e "\033[31mCheck configure is not successfully of node $i, connection failure!\033[0m"
       continue
     fi
-    /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx configtest'
+    for containerID in $(/usr/bin/ssh $i "docker container ls | grep '$containerName' | awk '{print \$1}'"); do
+      /usr/bin/ssh $i "docker exec $containerID /etc/init.d/nginx configtest"
+    done
   done
 }
 
@@ -57,16 +60,21 @@ status() {
       echo -e "\033[31mCheck service status is not successfully of node $i, connection failure!\033[0m"
       continue
     fi
-    /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx status'
+    for containerID in $(/usr/bin/ssh $i "docker container ls | grep '$containerName' | awk '{print \$1}'"); do
+      /usr/bin/ssh $i "docker exec $containerID /etc/init.d/nginx status"
+    done
   done
 }
 
 start() {
-  /usr/bin/docker stack deploy -c /data/docker/yml/nginx-stack.yml nginx
+  echo "Please execute a command similar to the following on the Docker cluster management node:"
+  echo /usr/bin/docker stack deploy -c /data/docker/yml/nginx-loadBalancing-stack.yml mes-platform
 }
 
 stop() {
-  /usr/bin/docker stack rm nginx
+  echo "Please execute a command similar to the following on the Docker cluster management node:"
+  echo "/usr/bin/docker service ls | grep $containerName | awk '{print \$1}'"
+  echo /usr/bin/docker docker service rm "xxxxxxxx"
 }
 
 reload() {
@@ -76,13 +84,10 @@ reload() {
       echo -e "\033[31mReload service is not successfully of node $i, connection failure!\033[0m"
       continue
     fi
-    stat=$(/usr/bin/docker stack ls | grep nginx | wc -l)
-    if [ $stat -ne "0" ]; then
-      echo "Reloading "$i"..."
-      /usr/bin/ssh $i 'docker exec $(docker container ls | grep nginx | awk "{print \$1}") /etc/init.d/nginx reload'
-    else
-      start
-    fi
+    echo "Reloading "$i"..."
+    for containerID in $(/usr/bin/ssh $i "docker container ls | grep '$containerName' | awk '{print \$1}'"); do
+      /usr/bin/ssh $i "docker exec $containerID /etc/init.d/nginx reload"
+    done
   done
 }
 
@@ -115,4 +120,3 @@ case "$1" in
 esac
 
 exit $?
-
